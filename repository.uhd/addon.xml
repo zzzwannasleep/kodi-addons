@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="repository.uhd" name="UHD Repository" version="1.0.0" provider-name="uhd-kodi">
+  <extension point="xbmc.addon.repository" name="UHD Repository">
+    <dir>
+      <info compressed="false">https://zzzwannasleep.github.io/plugin.video.uhd/addons.xml</info>
+      <checksum>https://zzzwannasleep.github.io/plugin.video.uhd/addons.xml.md5</checksum>
+      <datadir zip="true">https://zzzwannasleep.github.io/plugin.video.uhd/</datadir>
+    </dir>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Update source for the UHD addon</summary>
+    <summary lang="zh_CN">UHD 插件的更新源</summary>
+    <description lang="en_GB">Install once; Kodi then offers updates to the UHD addon automatically.</description>
+    <description lang="zh_CN">安装一次即可，之后 Kodi 会自动提示 UHD 插件的更新。</description>
+    <platform>all</platform>
+    <license>GPL-3.0-or-later</license>
+    <assets>
+      <icon>icon.png</icon>
+    </assets>
+  </extension>
+</addon>
