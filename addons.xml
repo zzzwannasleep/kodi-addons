@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addons><addon id="plugin.video.uhd" version="1.0.1" name="UHD" provider-name="uhd-kodi">
+<addons><addon id="plugin.video.uhd" version="1.0.2" name="UHD" provider-name="uhd-kodi">
   <requires>
     <import addon="xbmc.python" version="3.0.0" />
   </requires>
@@ -18,25 +18,28 @@
       <icon>icon.png</icon>
       <fanart>fanart.jpg</fanart>
     </assets>
-    <news>1.0.1
+    <news>1.0.2
+- 迁入 kodi-addons 插件库，更新源地址变更
+
+1.0.1
 - 通过仓库更新时显示更新日志（本条即为示例）
 
 1.0.0
 - 首个版本：资源库浏览、继续观看、搜索、收藏、排序与进度同步</news>
   </extension>
-</addon><addon id="repository.uhd" name="UHD Repository" version="1.1.0" provider-name="uhd-kodi">
-  <extension point="xbmc.addon.repository" name="UHD Repository">
+</addon><addon id="repository.kodiaddons" name="Kodi Addons" version="2.0.0" provider-name="zzzwannasleep">
+  <extension point="xbmc.addon.repository" name="Kodi Addons">
     <dir>
-      <info compressed="false">https://zzzwannasleep.github.io/plugin.video.uhd/addons.xml</info>
-      <checksum>https://zzzwannasleep.github.io/plugin.video.uhd/addons.xml.md5</checksum>
-      <datadir zip="true">https://zzzwannasleep.github.io/plugin.video.uhd/</datadir>
+      <info compressed="false">https://zzzwannasleep.github.io/kodi-addons/addons.xml</info>
+      <checksum>https://zzzwannasleep.github.io/kodi-addons/addons.xml.md5</checksum>
+      <datadir zip="true">https://zzzwannasleep.github.io/kodi-addons/</datadir>
     </dir>
   </extension>
   <extension point="xbmc.addon.metadata">
-    <summary lang="en_GB">Update source for the UHD addon</summary>
-    <summary lang="zh_CN">UHD 插件的更新源</summary>
-    <description lang="en_GB">Install once; Kodi then offers updates to the UHD addon automatically.</description>
-    <description lang="zh_CN">安装一次即可，之后 Kodi 会自动提示 UHD 插件的更新。</description>
+    <summary lang="en_GB">Update source for these Kodi addons</summary>
+    <summary lang="zh_CN">这些 Kodi 插件的更新源</summary>
+    <description lang="en_GB">Install once; Kodi then offers updates to every addon published here automatically.</description>
+    <description lang="zh_CN">安装一次即可，之后这里发布的每个插件都由 Kodi 自动提示更新。</description>
     <platform>all</platform>
     <license>GPL-3.0-or-later</license>
     <assets>

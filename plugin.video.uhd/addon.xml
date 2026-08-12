@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="plugin.video.uhd" version="1.0.1" name="UHD" provider-name="uhd-kodi">
+<addon id="plugin.video.uhd" version="1.0.2" name="UHD" provider-name="uhd-kodi">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -18,7 +18,10 @@
       <icon>icon.png</icon>
       <fanart>fanart.jpg</fanart>
     </assets>
-    <news>1.0.1
+    <news>1.0.2
+- 迁入 kodi-addons 插件库，更新源地址变更
+
+1.0.1
 - 通过仓库更新时显示更新日志（本条即为示例）
 
 1.0.0
