@@ -26,6 +26,11 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN_ID = "plugin.video.uhd"
 REPO_ID = "repository.uhd"
+# The repository addon's own version, deliberately independent of the plugin's.
+# Tying them together made every plugin release bump the repository too, so Kodi
+# spent one update cycle upgrading the repository and only offered the plugin on
+# the next one. Bump this only when the URLs below change.
+REPO_VERSION = "1.1.0"
 DEFAULT_BASE = "https://zzzwannasleep.github.io/plugin.video.uhd/"
 SKIP_DIRS = {"__pycache__", ".git"}
 SKIP_SUFFIX = (".pyc", ".pyo")
@@ -117,7 +122,7 @@ code{{background:#f2f2f2;padding:.15em .4em;border-radius:3px}}</style>
 <p>当前版本：<b>{ver}</b></p>
 <h2>自动更新（推荐）</h2>
 <ol>
-<li>下载 <a href="repository.uhd/repository.uhd-{ver}.zip">repository.uhd-{ver}.zip</a></li>
+<li>下载 <a href="repository.uhd/repository.uhd-{repover}.zip">repository.uhd-{repover}.zip</a></li>
 <li>Kodi → 插件 → 从 zip 文件安装 → 选中它</li>
 <li>之后在「从存储库安装」里找到 UHD，日后更新由 Kodi 自动提示</li>
 </ol>
@@ -126,7 +131,7 @@ code{{background:#f2f2f2;padding:.15em .4em;border-radius:3px}}</style>
 <p>装完在插件设置里填服务器地址与账号。仓库不包含任何地址或凭据。</p>
 <p><code>{base}</code></p>
 </html>
-""".format(ver=version, base=base)
+""".format(ver=version, base=base, repover=REPO_VERSION)
     with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
@@ -144,10 +149,9 @@ def main():
     version = addon_version(plugin_dir)
     zip_addon(plugin_dir, PLUGIN_ID, out, version)
 
-    # The repository addon carries the plugin's version so a bump propagates.
     work = os.path.join(out, ".build")
-    repo_src = build_repository_addon(work, base, version)
-    zip_addon(repo_src, REPO_ID, out, version)
+    repo_src = build_repository_addon(work, base, REPO_VERSION)
+    zip_addon(repo_src, REPO_ID, out, REPO_VERSION)
     shutil.copy2(os.path.join(repo_src, "addon.xml"),
                  os.path.join(out, REPO_ID, "addon.xml"))
     shutil.rmtree(work, ignore_errors=True)
