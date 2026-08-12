@@ -127,34 +127,52 @@ def write_index(out_dir, addon_dirs):
     return digest
 
 
+def write_listing(out_dir, entries):
+    """A directory index Kodi can browse as an "add source" location.
+
+    Kodi's HTTPDirectory scrapes <a href> out of the HTML and *drops any entry
+    whose link text differs from its href*, so these anchors must stay plain
+    and self-titled -- decoration here silently empties the folder in Kodi.
+    """
+    links = "\n".join('<a href="%s">%s</a><br>' % (e, e) for e in entries)
+    with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
+        f.write('<!doctype html><meta charset="utf-8"><title>index</title>\n'
+                + links + "\n")
+
+
 def write_landing(out_dir, base, addons):
     """Pages serves a bare directory otherwise; say what the URL is for."""
     rows = "\n".join(
         '<tr><td>{name}</td><td>{ver}</td>'
         '<td><a href="{id}/{id}-{ver}.zip">{id}-{ver}.zip</a></td></tr>'.format(
             id=a["id"], ver=a["version"], name=a["name"]) for a in addons)
+    # Self-titled links so this page doubles as a browsable directory in Kodi.
+    dirs = "\n".join('<a href="%s/">%s/</a>' % (i, i)
+                     for i in [a["id"] for a in addons] + [REPO_ID])
     html = """<!doctype html>
 <html lang="zh-CN"><meta charset="utf-8">
 <title>Kodi 插件库</title>
 <style>body{{font:16px/1.7 system-ui,sans-serif;max-width:44rem;margin:3rem auto;padding:0 1rem}}
 code{{background:#f2f2f2;padding:.15em .4em;border-radius:3px}}
 table{{border-collapse:collapse;width:100%}}
-td,th{{border-bottom:1px solid #ddd;padding:.4rem .6rem;text-align:left}}</style>
+td,th{{border-bottom:1px solid #ddd;padding:.4rem .6rem;text-align:left}}
+nav a{{margin-right:1rem;color:#888;font-size:.85em}}</style>
 <h1>Kodi 插件库</h1>
-<h2>自动更新（推荐）</h2>
+<h2>装一次仓库，之后自动更新</h2>
 <ol>
 <li>下载 <a href="{repoid}/{repoid}-{repover}.zip">{repoid}-{repover}.zip</a></li>
 <li>Kodi → 插件 → 从 zip 文件安装 → 选中它</li>
-<li>之后在「从存储库安装」里装插件，日后更新由 Kodi 自动提示</li>
+<li>之后在「从存储库安装 → Kodi Addons」里装插件，更新由 Kodi 自动提示</li>
 </ol>
+<p>也可以把 <code>{base}</code> 加成 Kodi 的文件源，直接在 Kodi 里浏览安装，不用先下载。</p>
 <h2>直接下载</h2>
 <table><tr><th>插件</th><th>版本</th><th>zip</th></tr>
 {rows}
 </table>
 <p>手动装的插件不会自动更新，升级要自己重装。插件里的地址与账号在各自的设置中填写，本仓库不含任何地址或凭据。</p>
-<p><code>{base}</code></p>
+<nav>{dirs}</nav>
 </html>
-""".format(base=base, rows=rows, repoid=REPO_ID, repover=REPO_VERSION)
+""".format(base=base, rows=rows, dirs=dirs, repoid=REPO_ID, repover=REPO_VERSION)
     with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
@@ -183,6 +201,11 @@ def main():
 
     digest = write_index(out, [a["dir"] for a in addons] +
                          [os.path.join(out, REPO_ID)])
+    for name in sorted(os.listdir(out)):
+        full = os.path.join(out, name)
+        if os.path.isdir(full):
+            write_listing(full, sorted(f for f in os.listdir(full)
+                                       if f.endswith(".zip")))
     write_landing(out, base, addons)
     print("repository built in %s" % out)
     print("  base url  %s" % base)

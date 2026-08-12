@@ -16,6 +16,7 @@ import re
 import shutil
 import sys
 import tempfile
+import urllib.parse
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -223,42 +224,84 @@ def _no_credentials():
     return "clean"
 
 
-@check("zip layout")
-def _zip():
-    out = tempfile.mkdtemp(prefix="kodi-repo-")
-    try:
+BUILT = None
+
+
+def built_tree():
+    """Build the publishable tree once; the layout checks below all read it."""
+    global BUILT
+    if BUILT is None:
+        out = tempfile.mkdtemp(prefix="kodi-repo-")
         argv, sys.argv = sys.argv, ["make_repo.py", "--out", out]
         try:
             with contextlib.redirect_stdout(io.StringIO()):
                 rc = build_repo()
-            assert rc == 0, "make_repo.py failed"
         finally:
             sys.argv = argv
-        zips = [os.path.join(b, f) for b, _d, fs in os.walk(out)
-                for f in fs if f.endswith(".zip")]
-        assert len(zips) >= len(ADDONS) + 1, "expected one zip per addon plus the repository"
-        for path in zips:
-            addon = os.path.basename(os.path.dirname(path))
-            with zipfile.ZipFile(path) as z:
-                names = z.namelist()
-            # Kodi refuses an archive that is not a single directory named after the id.
-            assert all(n.startswith(addon + "/") for n in names), \
-                "%s: bad top-level layout" % addon
-            assert not [n for n in names if "__pycache__" in n or n.endswith(".pyc")], \
-                "%s: compiled artefacts in the zip" % addon
-        # Kodi rejects the index if the checksum does not match the bytes on
-        # disk, which is what a CRLF-translating text write silently causes.
-        index = os.path.join(out, "addons.xml")
-        want = open(os.path.join(out, "addons.xml.md5"), encoding="utf-8").read().strip()
-        got = hashlib.md5(open(index, "rb").read()).hexdigest()
-        assert got == want, "addons.xml.md5 does not match addons.xml"
-        return "%d zips" % len(zips)
-    finally:
-        shutil.rmtree(out, ignore_errors=True)
+        assert rc == 0, "make_repo.py failed"
+        BUILT = out
+    return BUILT
+
+
+@check("zip layout")
+def _zip():
+    out = built_tree()
+    zips = [os.path.join(b, f) for b, _d, fs in os.walk(out)
+            for f in fs if f.endswith(".zip")]
+    assert len(zips) >= len(ADDONS) + 1, "expected one zip per addon plus the repository"
+    for path in zips:
+        addon = os.path.basename(os.path.dirname(path))
+        with zipfile.ZipFile(path) as z:
+            names = z.namelist()
+        # Kodi refuses an archive that is not a single directory named after the id.
+        assert all(n.startswith(addon + "/") for n in names), \
+            "%s: bad top-level layout" % addon
+        assert not [n for n in names if "__pycache__" in n or n.endswith(".pyc")], \
+            "%s: compiled artefacts in the zip" % addon
+    # Kodi rejects the index if the checksum does not match the bytes on disk,
+    # which is what a CRLF-translating text write silently causes.
+    want = open(os.path.join(out, "addons.xml.md5"), encoding="utf-8").read().strip()
+    got = hashlib.md5(open(os.path.join(out, "addons.xml"), "rb").read()).hexdigest()
+    assert got == want, "addons.xml.md5 does not match addons.xml"
+    return "%d zips" % len(zips)
+
+
+# Kodi's HTTPDirectory scrapes links with this and then drops every entry whose
+# text differs from its href, so a prettified index silently lists nothing.
+KODI_LINK = re.compile(r'<a href="([^"]*)"[^>]*>\s*(.*?)\s*</a>')
+
+
+def kodi_entries(path):
+    html = open(path, encoding="utf-8").read()
+    return {href for href, text in KODI_LINK.findall(html)
+            if urllib.parse.unquote(href) == text}
+
+
+@check("browsable in kodi")
+def _browsable():
+    out = built_tree()
+    root = os.path.join(out, "index.html")
+    assert os.path.exists(root), "no landing page"
+    listed = kodi_entries(root)
+    n = 0
+    for name in sorted(os.listdir(out)):
+        full = os.path.join(out, name)
+        if not os.path.isdir(full):
+            continue
+        assert name + "/" in listed, "%s is not reachable from the landing page" % name
+        index = os.path.join(full, "index.html")
+        assert os.path.exists(index), "%s: no directory index" % name
+        entries = kodi_entries(index)
+        for zip_name in (f for f in os.listdir(full) if f.endswith(".zip")):
+            assert zip_name in entries, "%s: %s not listed" % (name, zip_name)
+            n += 1
+    return "%d zips reachable as a file source" % n
 
 
 if __name__ == "__main__":
     print("static checks (no server account needed)")
+    if BUILT:
+        shutil.rmtree(BUILT, ignore_errors=True)
     if failures:
         print("\n%d check(s) failed" % len(failures))
         sys.exit(1)
