@@ -1,0 +1,104 @@
+name: build
+
+# Push a version bump in plugin.video.uhd/addon.xml and this publishes it:
+# static checks, then a Release and a refreshed Kodi repository index, which is
+# what makes Kodi itself offer the update.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    # Kodi 21 embeds Python 3.8, so compile against that rather than whatever
+    # the runner defaults to. 3.8 is only available on the 22.04 image.
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: static checks
+        run: python tools/check_static.py
+
+      - name: read addon version
+        id: meta
+        run: |
+          version=$(python - <<'PY'
+          import xml.etree.ElementTree as ET
+          print(ET.parse("plugin.video.uhd/addon.xml").getroot().get("version"))
+          PY
+          )
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "addon version $version"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin.video.uhd-${{ steps.meta.outputs.version }}
+          path: plugin.video.uhd-*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: build repository tree
+        run: |
+          base="https://${GITHUB_REPOSITORY%%/*}.github.io/${GITHUB_REPOSITORY#*/}/"
+          python tools/make_repo.py --out "$RUNNER_TEMP/repo" --base-url "$base"
+
+      - name: publish repository index to gh-pages
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Keep whatever is already published so older versions stay installable.
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages
+            git worktree add "$RUNNER_TEMP/pages" gh-pages
+          else
+            git worktree add --detach "$RUNNER_TEMP/pages"
+            git -C "$RUNNER_TEMP/pages" checkout --orphan gh-pages
+            git -C "$RUNNER_TEMP/pages" rm -rf . >/dev/null 2>&1 || true
+          fi
+          cp -r "$RUNNER_TEMP/repo/." "$RUNNER_TEMP/pages/"
+          touch "$RUNNER_TEMP/pages/.nojekyll"
+          git -C "$RUNNER_TEMP/pages" add -A
+          if git -C "$RUNNER_TEMP/pages" diff --cached --quiet; then
+            echo "repository index unchanged"
+          else
+            git -C "$RUNNER_TEMP/pages" commit -m "repository: plugin.video.uhd $VERSION"
+            git -C "$RUNNER_TEMP/pages" push origin gh-pages
+          fi
+
+      - name: release when the version is new
+        run: |
+          tag="v$VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag already released, nothing to do"
+            exit 0
+          fi
+          gh release create "$tag" \
+            "$RUNNER_TEMP/repo/plugin.video.uhd/plugin.video.uhd-$VERSION.zip" \
+            "$RUNNER_TEMP/repo/repository.uhd/repository.uhd-$VERSION.zip" \
+            --title "$tag" \
+            --notes "安装 \`repository.uhd-$VERSION.zip\` 一次，之后 Kodi 会自动提示更新；或直接安装 \`plugin.video.uhd-$VERSION.zip\` 手动升级。"

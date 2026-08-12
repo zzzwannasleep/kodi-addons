@@ -1,0 +1,9 @@
+1.env
+*.env
+config.sh
+*.local
+__pycache__/
+*.pyc
+*.zip
+.smoke_profile/
+repo/

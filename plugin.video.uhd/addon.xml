@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="plugin.video.uhd" version="1.0.0" name="UHD" provider-name="uhd-kodi">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="main.py">
+    <provides>video</provides>
+  </extension>
+  <extension point="xbmc.service" library="service.py"/>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Browse and play a UHD Media Server library</summary>
+    <summary lang="zh_CN">浏览并播放 UHD 媒体服务器资源库</summary>
+    <description lang="en_GB">Kodi client for UHD Media Server, which speaks an Emby-compatible HTTP API. Browse libraries, resume playback, search, manage favourites and watched state. Server address and account are configured in the addon settings.</description>
+    <description lang="zh_CN">UHD 媒体服务器的 Kodi 客户端（服务端使用 Emby 兼容接口）。支持资源库浏览、继续观看、搜索、收藏与观看状态同步。服务器地址与账号在插件设置中填写。</description>
+    <platform>all</platform>
+    <license>GPL-3.0-or-later</license>
+    <assets>
+      <icon>icon.png</icon>
+      <fanart>fanart.jpg</fanart>
+    </assets>
+  </extension>
+</addon>
