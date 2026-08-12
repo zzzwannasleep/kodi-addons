@@ -85,6 +85,11 @@
           <default>false</default>
           <control type="toggle"/>
         </setting>
+        <setting id="ask_version" type="boolean" label="30218" help="30219">
+          <level>0</level>
+          <default>true</default>
+          <control type="toggle"/>
+        </setting>
         <setting id="view_mode" type="integer" label="30214" help="30215">
           <level>0</level>
           <default>54</default>

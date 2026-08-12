@@ -1,6 +1,7 @@
 # plugin.video.uhd
 
-Kodi 客户端，对接 UHD 媒体服务器（服务端跑的是 Emby 兼容接口，`UHD Media Server 4.9.x`）。
+Kodi 客户端，对接 Emby 及 Emby 兼容服务器。已在 `Emby 4.9.5` 与 `UHD Media Server 4.9.3`
+两台真实服务器上验证。
 
 安装见[仓库根目录](../README.md)。装完打开插件设置填**服务器地址 / 用户名 / 密码**，
 仓库里不含任何地址与账号。
@@ -10,7 +11,12 @@ Kodi 客户端，对接 UHD 媒体服务器（服务端跑的是 Emby 兼容接�
 - 资源库浏览（电影 / 剧集，分页）；剧集 → 季 → 集，单季剧自动跳过「季」这一层
 - 继续观看、接着看（Next Up）、最近添加、我的收藏、搜索
 - 库内排序：名称 / 入库时间 / 首播日期 / 评分 / 时长 / 最近播放 / 播放次数 / 随机，可切升降序，每个库各自记住
+- **多版本选择**：一个条目有多个版本时，播放前列出版本名、容器、体积、分辨率让你选
+  （测试库里最多的一个条目有 31 个版本）。设置里可关，关掉就直接播第一个
+- **类型浏览**：仅在服务器真的支持 `Genres=` 过滤时出现，探测结果按服务器缓存
 - 播放进度双向同步：Kodi 里看到哪，服务器和网页端就跟到哪
+- 外挂文本字幕自动挂载；图形字幕（PGS/VOBSUB）交给播放器从容器里读
+- 网关抖动自动重试
 - 长按菜单：收藏、标记已看 / 未看
 
 ## 结构
@@ -24,26 +30,45 @@ resources/lib/session.py  token 磁盘缓存 + 每库排序持久化
 resources/lib/listing.py  Emby item → Kodi ListItem 映射
 ```
 
-## 服务端与标准 Emby 的差异
+## 两台服务器的差异
 
-实测出来的，`api.py` 顶部注释里也有一份，改代码前先看：
+同一套 API，两家实现对不上的地方。全部实测，`api.py` 顶部注释里也有一份，改代码前先看：
 
-| 行为 | 实测结果 |
-|---|---|
-| `Genres` / `GenreIds` / `Years` / `NameStartsWith` 过滤 | **被静默忽略**，返回全量且 `TotalRecordCount` 不变 |
-| `Filters=` | 仅在**不带** `ParentId` 时生效 |
-| `/Years`、`/Tags` | 404（`/Genres`、`/Studios`、`/Persons` 正常） |
-| `/Users/{id}/Items/Latest` | 返回裸数组，不是 `Items` 信封 |
-| 转码 | 全部条目 `SupportsTranscoding=false`，只能直连播放 |
-| 播放地址 | 302 跳转到 CDN 主机 |
-| User-Agent | 前置 Cloudflare **403** 掉默认的 `Python-urllib`，所有请求必须带 UA |
-| 排序字段 | `DateLastMediaAdded` / `CriticRating` / `OfficialRating` 被忽略；`DateLastContentAdded` 是 `DateCreated` 的别名，所以「更新时间」和「入库时间」无法区分 |
+| 行为 | UHD 4.9.3 | Emby 4.9.5 |
+|---|---|---|
+| `Genres=` / `Years=` 过滤 | **被静默忽略**，返回全量 | 生效 |
+| `NameStartsWith` / `HasSubtitles` | 忽略 | 忽略 |
+| `Filters=` 带 `ParentId` | 忽略 | 生效 |
+| 列表查询里的 `MediaSources` | 有 | **没有**，必须取详情 |
+| 上报的 `PlaySessionId` | 可省 | **必须有**，否则 400 |
+| 未声明的图片类型 | 返回 Primary 的字节 | 404 |
+| `/Years` | 404 | 500 |
+| `/Tags` | 404 | 正常 |
+| `/Playlists` | — | 404 |
+| `/Search/Hints` | — | 返回空，搜索得用 `Items?SearchTerm=` |
+| 转码 | `SupportsTranscoding=false` | `SupportsTranscoding=false`，账号策略也禁了 |
 
-判断一个 SortBy 是否真生效要**比较升序与降序**——被忽略的字段两个方向返回同一结果，只看「和默认
-顺序不同」会把忽略当成生效。排序在服务端做（列表 3000+ 条，客户端排序没意义）。
+两家一致的地方：`/Users/{id}/Items/Latest` 返回裸数组不是信封；`Chapters` 只在详情端点返回，
+列表查询里给的是空数组；前置网关会 403 掉默认的 `Python-urllib`，所有请求必须带 UA。
 
-因为过滤参数不可用，插件不做类型/年份筛选菜单：服务端做不了的事，客户端拉全量再过滤只会更慢。
-哪天服务端支持了，`selftest.py` 里那条回归断言会失败提醒。
+**判断一个过滤参数是否生效，必须用取反对照。** 只测正向不能证伪——一个全库都有字幕的库，
+`HasSubtitles=true` 返回全量恰恰说明它生效了。同理判断 SortBy 要比较升序与降序，被忽略的字段
+两个方向返回同一结果。排序在服务端做（列表 20000+ 条，客户端排序没意义）。
+
+类型菜单不是写死的：`api.genre_filter_works()` 拿一个真实类型名比对总数，答案按服务器缓存在
+`addon_data/caps.json`。UHD 上探测为 false，菜单就不出现——否则会得到一堆点进去都是全库的类型。
+
+## 续播是怎么工作的
+
+这一条决定了 `service.py` 的形状，改之前务必读：
+
+- `/Sessions/Playing/Progress` **在 Emby 上不写入续播点**（等到 50 秒回读仍是 0），UHD 上写入。
+- `/Sessions/Playing/Stopped` 两家都写入。**续播完全依赖这一次上报。**
+- 所以 Kodi 被强杀 / 断电时，这次观看的进度会丢。`service.py` 在 `waitForAbort` 返回后补发一次
+  Stopped，正常退出不受影响。
+- 位置太靠前会被服务器丢弃（不记续播点），约 90% 之后则直接标记为已看。
+- 服务器写用户数据有延迟，**写完立刻回读拿到的是旧值**。测试里必须轮询等待，否则会把
+  「还没落盘」误判成「服务器拒绝了」——这个坑让我误判过一次服务器有 bug。
 
 ## 实现要点（都是真机上踩出来的）
 
@@ -74,12 +99,21 @@ Kodi 自身若显示乱码，是 `locale.charset` 被设成了 `BIG5` 之类；�
 
 ## 测试
 
-两个测试都要读仓库根目录的 `1.env`（三行：地址 / 用户名 / 密码，已 gitignore）：
+两个测试都读仓库根目录的 env 文件（三行：地址 / 用户名 / 密码，已 gitignore），
+默认 `1.env`，加参数可指定另一台：
 
 ```bash
-python selftest.py    # 打真实服务器，验证 api.py 的接口契约
-python smoketest.py   # 桩掉 xbmc* 模块，用真实数据跑一遍路由与渲染
+python tests/plugin.video.uhd/selftest.py           # api.py 的接口契约，打真实服务器
+python tests/plugin.video.uhd/selftest.py 2.env     # 换一台服务器
+python tests/plugin.video.uhd/smoketest.py          # 桩掉 xbmc*，用真实数据跑路由与渲染
+python tests/plugin.video.uhd/smoketest.py 2.env
 ```
+
+**改完要两台都跑。** 两家实现的差异就是靠这个兜住的：只跑一台的话，凡是把某一台的行为
+当成通用行为写死的代码都会一路绿灯——这份文件上一版就是那么写的。
+
+`selftest.py` 里只有「插件依赖它才能工作」的才写成断言，服务器允许不一致的地方一律打印成
+实测值（比如 progress 落不落盘），因为那些是插件运行时探测的对象，不是回归目标。
 
 `smoketest.py` 证明的是路由和映射逻辑不会在真实数据上炸，**不能**证明 Kodi API 名字写对了——
 那两个真机 bug 就是这么漏过去的。不碰服务器的检查在 `tools/check_static.py`，CI 跑的是它。

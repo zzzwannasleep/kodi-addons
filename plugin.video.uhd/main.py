@@ -185,6 +185,12 @@ def route_items(api):
         add_dir("%s: %s %s" % (L(30400, "Sort"), sort_label(sort_by), arrow),
                 None, action="sortmenu", parent=parent, types=types,
                 content=ARGS.get("content"))
+        # Offered only where the server honours it. UHD accepts Genres= and
+        # returns the unfiltered library, which would make every genre here
+        # open the same list.
+        if session.capability("genre_filter", api.genre_filter_works):
+            add_dir(L(30340, "Genres"), None, action="genres", types=types,
+                    content=ARGS.get("content"))
     render(api, data.get("Items", []), content,
            total=data.get("TotalRecordCount"), start=start,
            next_params={"action": "items", "parent": parent, "types": types,
@@ -225,6 +231,31 @@ def route_sortmenu(api):
         session.set_sort(parent, by, new_order)
     xbmc.executebuiltin("Container.Update(%s,replace)" % build_url(
         BASE, action="items", parent=parent, types=types, content=content))
+
+
+def route_genres(api):
+    types, content = ARGS.get("types") or None, ARGS.get("content")
+    names = [g.get("Name") for g in api.genres() if g.get("Name")]
+    for name in names:
+        add_dir(name, None, action="genre", genre=name, types=types,
+                content=content)
+    if not names:
+        session.notify(L(30341, "This server returned no genres"))
+    finish(sort=False)
+
+
+def route_genre(api):
+    genre = ARGS["genre"]
+    types, content = ARGS.get("types") or None, ARGS.get("content")
+    start = int(ARGS.get("start") or 0)
+    sort_by, sort_order = default_sort()
+    data = api.by_genre(genre, types=types, start=start, limit=page_size(),
+                        sort_by=sort_by, sort_order=sort_order)
+    render(api, data.get("Items", []),
+           {"movies": "movies", "tvshows": "tvshows"}.get(content),
+           total=data.get("TotalRecordCount"), start=start,
+           next_params={"action": "genre", "genre": genre, "types": types,
+                        "content": content})
 
 
 def route_seasons(api):
@@ -275,15 +306,72 @@ def route_search(api):
            next_params={"action": "search", "q": term})
 
 
+def _source_label(source, index):
+    """A version's label: what distinguishes it from the other versions."""
+    name = (source.get("Name") or "").strip()
+    bits = []
+    container = (source.get("Container") or "").upper()
+    if container:
+        bits.append(container)
+    size = source.get("Size")
+    if size:
+        bits.append("%.1f GB" % (size / 1073741824.0))
+    for stream in source.get("MediaStreams") or []:
+        if stream.get("Type") == "Video" and stream.get("Height"):
+            bits.append("%sp" % stream["Height"])
+            break
+    suffix = " · ".join(bits)
+    label = name or ("%s %d" % (L(30330, "Version"), index + 1))
+    return "%s   %s" % (label, suffix) if suffix else label
+
+
+def choose_source(api, item_id, msid):
+    """Which of the item's versions to play.
+
+    A film on the test server carries nineteen versions, from an 8 GB encode to
+    a 37 GB remux. Taking the first one silently hands the viewer whichever the
+    server happened to list first, so anything past a single version is asked
+    about. Emby omits MediaSources from list queries, so this is also where the
+    detail gets fetched.
+
+    Returns (media_source_id, source), or None if the viewer dismissed the
+    dialog. An item with no MediaSources at all is not a cancellation: the
+    stream endpoint still plays it by item id.
+    """
+    sources = api.media_sources(item_id)
+    if not sources:
+        return msid, None
+    if msid:
+        for s in sources:
+            if s.get("Id") == msid:
+                return msid, s
+    if len(sources) == 1:
+        return sources[0].get("Id"), sources[0]
+    if not ADDON.getSettingBool("ask_version"):
+        return sources[0].get("Id"), sources[0]
+    labels = [_source_label(s, i) for i, s in enumerate(sources)]
+    choice = xbmcgui.Dialog().select(L(30331, "Choose a version"), labels)
+    if choice < 0:
+        return None
+    return sources[choice].get("Id"), sources[choice]
+
+
 def route_play(api):
     item_id = ARGS["id"]
-    msid = ARGS.get("msid") or None
-    if not msid:
-        detail = api.item(item_id) or {}
-        msid = (detail.get("MediaSources") or [{}])[0].get("Id")
-    url, play_session = api.stream_url(item_id, msid)
+    picked = choose_source(api, item_id, ARGS.get("msid") or None)
+    if picked is None:
+        # The version dialog was dismissed. Fail the resolve so Kodi stays on
+        # the list instead of opening a player on nothing.
+        return xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
+    msid, source = picked
+    url, play_session, chosen = api.stream_url(item_id, msid)
     li = xbmcgui.ListItem(path=url)
     li.setContentLookup(False)
+    subtitles = api.subtitle_urls(item_id, chosen or source)
+    if subtitles:
+        # Text sidecars only. Graphic tracks stay in the container, where Kodi
+        # picks them up by itself during direct play.
+        li.setSubtitles(subtitles)
     xbmcplugin.setResolvedUrl(HANDLE, True, li)
     # Hand off to service.py, which owns progress reporting for the whole
     # playback; this process is about to exit.
@@ -307,7 +395,7 @@ ROUTES = {
     "seasons": route_seasons, "episodes": route_episodes, "resume": route_resume,
     "nextup": route_nextup, "latest": route_latest, "favorites": route_favorites,
     "search": route_search, "sortmenu": route_sortmenu, "play": route_play, "favorite": route_favorite,
-    "played": route_played,
+    "played": route_played, "genres": route_genres, "genre": route_genre,
 }
 
 

@@ -7,7 +7,7 @@
 
 | 插件 | 说明 |
 |---|---|
-| [plugin.video.uhd](plugin.video.uhd/) | UHD 媒体服务器客户端（Emby 兼容接口） |
+| [plugin.video.uhd](plugin.video.uhd/) | Emby 及 Emby 兼容服务器（如 UHD 媒体服务器）客户端 |
 
 ## 安装
 

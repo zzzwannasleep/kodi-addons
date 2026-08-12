@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="plugin.video.uhd" version="1.0.2" name="UHD" provider-name="uhd-kodi">
+<addon id="plugin.video.uhd" version="1.1.0" name="UHD" provider-name="uhd-kodi">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -10,15 +10,22 @@
   <extension point="xbmc.addon.metadata">
     <summary lang="en_GB">Browse and play a UHD Media Server library</summary>
     <summary lang="zh_CN">浏览并播放 UHD 媒体服务器资源库</summary>
-    <description lang="en_GB">Kodi client for UHD Media Server, which speaks an Emby-compatible HTTP API. Browse libraries, resume playback, search, manage favourites and watched state. Server address and account are configured in the addon settings.</description>
-    <description lang="zh_CN">UHD 媒体服务器的 Kodi 客户端（服务端使用 Emby 兼容接口）。支持资源库浏览、继续观看、搜索、收藏与观看状态同步。服务器地址与账号在插件设置中填写。</description>
+    <description lang="en_GB">Kodi client for Emby and Emby-compatible servers such as UHD Media Server. Browse libraries, resume playback, search, manage favourites and watched state. Server address and account are configured in the addon settings.</description>
+    <description lang="zh_CN">Emby 及 Emby 兼容服务器（如 UHD 媒体服务器）的 Kodi 客户端。支持资源库浏览、继续观看、搜索、收藏与观看状态同步。服务器地址与账号在插件设置中填写。</description>
     <platform>all</platform>
     <license>GPL-3.0-or-later</license>
     <assets>
       <icon>icon.png</icon>
       <fanart>fanart.jpg</fanart>
     </assets>
-    <news>1.0.2
+    <news>1.1.0
+- 支持多版本影片：一个条目有多个版本时播放前可以选择
+- 网关抖动自动重试，不再随机出现登录失败或空白列表
+- 支持 Emby 服务器：按服务器实测能力启用类型浏览
+- 外挂文本字幕自动挂载（图形字幕仍由播放器从容器读取）
+- 停止上报改为必带会话 id，续播点不再丢失
+
+1.0.2
 - 迁入 kodi-addons 插件库，更新源地址变更
 
 1.0.1

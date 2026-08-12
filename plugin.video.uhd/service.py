@@ -145,6 +145,9 @@ class Reporter(xbmc.Monitor):
 
             if self.waitForAbort(1):
                 break
+        # Kodi is shutting down mid-playback. This stop report is not a
+        # nicety: progress reports are not persisted by the server, so without
+        # it the whole viewing is lost and the item resumes where it was before.
         self._stop()
 
 

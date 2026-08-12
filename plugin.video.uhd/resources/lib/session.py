@@ -113,6 +113,40 @@ def get_client(interactive=True, force_login=False):
     return client
 
 
+# ---------------------------------------------------------------- server quirks
+CAPS_FILE = os.path.join(PROFILE, "caps.json")
+
+
+def capability(name, probe):
+    """Remember what this server turned out to support.
+
+    The two servers this addon talks to disagree about which query parameters
+    do anything, and the only honest way to tell them apart is to ask. Probing
+    costs two requests, so the answer is kept per server and per capability.
+    """
+    server = ADDON.getSetting("server").strip()
+    key = "%s|%s" % (server, name)
+    try:
+        with open(CAPS_FILE, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+    except Exception:
+        cache = {}
+    if key in cache:
+        return cache[key]
+    try:
+        value = bool(probe())
+    except Exception as e:
+        log("capability probe %r failed: %s" % (name, e))
+        return False
+    cache[key] = value
+    if not os.path.isdir(PROFILE):
+        os.makedirs(PROFILE, exist_ok=True)
+    with open(CAPS_FILE, "w", encoding="utf-8") as f:
+        json.dump(cache, f)
+    log("capability %r on this server: %s" % (name, value))
+    return value
+
+
 # ------------------------------------------------------------------ sort prefs
 def _read_sorts():
     try:
