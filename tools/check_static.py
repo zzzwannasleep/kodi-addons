@@ -210,7 +210,7 @@ def _no_credentials():
     for base, dirs, files in os.walk(ROOT):
         dirs[:] = [d for d in dirs if d not in ("__pycache__", ".git", "repo")]
         for f in files:
-            if not f.endswith((".py", ".xml", ".po", ".md", ".yml", ".yaml")):
+            if not f.endswith((".py", ".xml", ".po", ".md", ".txt", ".yml", ".yaml")):
                 continue
             path = os.path.join(base, f)
             text = open(path, encoding="utf-8", errors="replace").read()
