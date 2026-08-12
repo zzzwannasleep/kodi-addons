@@ -2,17 +2,20 @@
 """Contract check for resources/lib/api.py against a live UHD server.
 
 Reads server / username / password from 1.env (three lines, gitignored) so no
-credentials live in the source tree. Run: python selftest.py
+credentials live in the source tree. Run: python tests/plugin.video.uhd/selftest.py
 """
 import os
 import sys
 import uuid
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "plugin.video.uhd"))
+HERE = os.path.dirname(os.path.abspath(__file__))
+# This directory is named after the addon it tests.
+ROOT = os.path.dirname(os.path.dirname(HERE))
+ADDON_DIR = os.path.join(ROOT, os.path.basename(HERE))
+sys.path.insert(0, ADDON_DIR)
 from resources.lib.api import UHD, TICKS_PER_SEC  # noqa: E402
 
-ENV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "1.env")
+ENV = os.path.join(ROOT, "1.env")
 
 
 def creds():

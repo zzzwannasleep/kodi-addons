@@ -1,8 +1,8 @@
 name: build
 
-# Push a version bump in plugin.video.uhd/addon.xml and this publishes it:
-# static checks, then a Release and a refreshed Kodi repository index, which is
-# what makes Kodi itself offer the update.
+# Bump an addon's version in its addon.xml and push: this publishes it.
+# Static checks, then a refreshed Kodi repository index (which is what makes
+# Kodi itself offer the update) and a Release per new addon version.
 on:
   push:
     branches: [main]
@@ -17,8 +17,6 @@ jobs:
     # Kodi 21 embeds Python 3.8, so compile against that rather than whatever
     # the runner defaults to. 3.8 is only available on the 22.04 image.
     runs-on: ubuntu-22.04
-    outputs:
-      version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,21 +27,13 @@ jobs:
       - name: static checks
         run: python tools/check_static.py
 
-      - name: read addon version
-        id: meta
-        run: |
-          version=$(python - <<'PY'
-          import xml.etree.ElementTree as ET
-          print(ET.parse("plugin.video.uhd/addon.xml").getroot().get("version"))
-          PY
-          )
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "addon version $version"
+      - name: build repository tree
+        run: python tools/make_repo.py --out "$RUNNER_TEMP/repo"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: plugin.video.uhd-${{ steps.meta.outputs.version }}
-          path: plugin.video.uhd-*.zip
+          name: addons
+          path: ${{ runner.temp }}/repo
           if-no-files-found: error
 
   publish:
@@ -51,7 +41,6 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
     env:
-      VERSION: ${{ needs.check.outputs.version }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -86,19 +75,20 @@ jobs:
           if git -C "$RUNNER_TEMP/pages" diff --cached --quiet; then
             echo "repository index unchanged"
           else
-            git -C "$RUNNER_TEMP/pages" commit -m "repository: plugin.video.uhd $VERSION"
+            git -C "$RUNNER_TEMP/pages" commit -m "repository: ${GITHUB_SHA:0:7}"
             git -C "$RUNNER_TEMP/pages" push origin gh-pages
           fi
 
-      - name: release when the version is new
+      - name: release every new addon version
         run: |
-          tag="v$VERSION"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "$tag already released, nothing to do"
-            exit 0
-          fi
-          gh release create "$tag" \
-            "$RUNNER_TEMP/repo/plugin.video.uhd/plugin.video.uhd-$VERSION.zip" \
-            "$RUNNER_TEMP/repo/repository.uhd/repository.uhd-$VERSION.zip" \
-            --title "$tag" \
-            --notes "安装 \`repository.uhd-$VERSION.zip\` 一次，之后 Kodi 会自动提示更新；或直接安装 \`plugin.video.uhd-$VERSION.zip\` 手动升级。"
+          # The zip is named <id>-<version>.zip, which is also the tag, so a
+          # version that is already released simply finds its tag and is skipped.
+          for zip in "$RUNNER_TEMP"/repo/*/*.zip; do
+            tag=$(basename "$zip" .zip)
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "$tag already released"
+              continue
+            fi
+            gh release create "$tag" "$zip" --title "$tag" \
+              --notes "先装一次 repository.kodiaddons zip，之后 Kodi 会自动提示更新；也可以直接装这个 zip，但手动装的插件不会自动更新。"
+          done

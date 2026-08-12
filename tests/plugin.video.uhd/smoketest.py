@@ -4,7 +4,7 @@
 Kodi itself is not importable outside Kodi, so the xbmc* modules are stubbed.
 This does not prove the Kodi API names are right -- it proves this addon's own
 routing, URL building and metadata mapping do not blow up on real payloads.
-Run: python smoketest.py
+Run: python tests/plugin.video.uhd/smoketest.py
 """
 import os
 import sys
@@ -12,8 +12,10 @@ import tempfile
 import types
 import urllib.parse
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-ADDON_DIR = os.path.join(ROOT, "plugin.video.uhd")
+HERE = os.path.dirname(os.path.abspath(__file__))
+# This directory is named after the addon it tests.
+ROOT = os.path.dirname(os.path.dirname(HERE))
+ADDON_DIR = os.path.join(ROOT, os.path.basename(HERE))
 
 CALLS = {"dirs": [], "content": [], "sort": [], "resolved": [], "props": {},
          "labels": {}}
